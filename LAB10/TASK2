@@ -1,0 +1,215 @@
+#include <iostream>
+#include <memory>
+#include <vector>
+#include <string>
+#include <windows.h>
+
+// Інтерфейс для файлів
+class File {
+public:
+    virtual std::wstring getType() const = 0;
+    virtual ~File() = default;
+};
+
+// Конкретні класи файлів
+class ImageFile : public File {
+public:
+    std::wstring getType() const override { return L"Image File"; }
+};
+
+class TextDocument : public File {
+public:
+    std::wstring getType() const override { return L"Text Document"; }
+};
+
+class TableFile : public File {
+public:
+    std::wstring getType() const override { return L"Table File"; }
+};
+
+// Factory для створення файлів
+class FileFactory {  // Factory pattern
+public:
+    static std::unique_ptr<File> createFile(const std::wstring& type) {
+        if (type == L"image") return std::make_unique<ImageFile>();
+        if (type == L"text") return std::make_unique<TextDocument>();
+        if (type == L"table") return std::make_unique<TableFile>();
+        return nullptr;
+    }
+};
+
+// Базовий клас для обробників
+class FileHandler {  // Chain of Responsibility pattern
+protected:
+    std::shared_ptr<FileHandler> nextHandler;
+
+public:
+    virtual void setNext(std::shared_ptr<FileHandler> handler) {
+        nextHandler = handler;
+    }
+
+    virtual void handle(const File& file) {
+        if (nextHandler) {
+            nextHandler->handle(file);
+        }
+    }
+};
+
+// Конкретні обробники
+class VirusChecker : public FileHandler {
+public:
+    void handle(const File& file) override {
+        std::wcout << L"Checking for viruses in " << file.getType() << L"...\n";
+        FileHandler::handle(file);
+    }
+};
+
+class FormatChecker : public FileHandler {
+public:
+    void handle(const File& file) override {
+        std::wcout << L"Checking format of " << file.getType() << L"...\n";
+        FileHandler::handle(file);
+    }
+};
+
+class SizeChecker : public FileHandler {
+public:
+    void handle(const File& file) override {
+        std::wcout << L"Checking size of " << file.getType() << L"...\n";
+        FileHandler::handle(file);
+    }
+};
+
+// Observer interface
+class Observer {  // Observer pattern
+public:
+    virtual void update(const std::wstring& status) = 0;
+};
+
+// Клас для сповіщень
+class FileUploader {
+private:
+    std::vector<Observer*> observers;
+
+public:
+    void addObserver(Observer* observer) {
+        observers.push_back(observer);
+    }
+
+    void notifyObservers(const std::wstring& status) {
+        for (auto observer : observers) {
+            observer->update(status);
+            MessageBoxA(NULL, std::string(status.begin(), status.end()).c_str(), "Upload Status", MB_OK);
+        }
+    }
+
+    void uploadFile(const File& file) {
+        notifyObservers(L"Uploading " + file.getType() + L"...\n");
+        notifyObservers(L"Upload completed for " + file.getType() + L"!\n");
+    }
+};
+
+// Приклад Observer
+class ConsoleObserver : public Observer {
+public:
+    void update(const std::wstring& status) override {
+        std::wcout << L"Status: " << status << L"\n";
+    }
+};
+
+// Базовий клас-декоратор
+class FileDecorator : public File {  // Decorator pattern
+protected:
+    std::unique_ptr<File> file;
+
+public:
+    FileDecorator(std::unique_ptr<File> f) : file(std::move(f)) {}
+
+    std::wstring getType() const override {
+        return file->getType();
+    }
+};
+
+// Декоратор для шифрування
+class EncryptionDecorator : public FileDecorator {
+public:
+    EncryptionDecorator(std::unique_ptr<File> f) : FileDecorator(std::move(f)) {}
+
+    std::wstring getType() const override {
+        return L"Encrypted " + FileDecorator::getType();
+    }
+};
+
+// Головна функція
+int main() {
+    std::wstring command;
+
+    while (true) {
+        std::wcout << L"Type(start/finish): ";
+        std::getline(std::wcin, command);
+
+        if (command == L"start") {
+            std::wcout << L"Choose the object you want to create (image/text/table): ";
+            std::wstring fileType;
+            std::getline(std::wcin, fileType);
+
+            auto file = FileFactory::createFile(fileType);
+            if (file) {
+                std::wcout << L"File created: " << file->getType() << L"\n";
+
+                // Запит для перевірки
+                std::wcout << L"Do you want to check the file? (yes/no): ";
+                std::wstring checkResponse;
+                std::getline(std::wcin, checkResponse);
+
+                if (checkResponse == L"yes") {
+                    // Створення ланцюга обробників
+                    auto virusChecker = std::make_shared<VirusChecker>();  // Chain of Responsibility pattern
+                    auto formatChecker = std::make_shared<FormatChecker>();  // Chain of Responsibility pattern
+                    auto sizeChecker = std::make_shared<SizeChecker>();  // Chain of Responsibility pattern
+
+                    virusChecker->setNext(formatChecker);
+                    formatChecker->setNext(sizeChecker);
+
+                    // Обробка файлу
+                    virusChecker->handle(*file);
+                }
+
+                // Запит на сповіщення
+                std::wcout << L"Do you want notifications? (yes/no): ";
+                std::wstring notificationResponse;
+                std::getline(std::wcin, notificationResponse);
+
+                if (notificationResponse == L"yes") {
+                    FileUploader uploader;
+                    ConsoleObserver consoleObserver;
+                    uploader.addObserver(&consoleObserver);
+                    uploader.uploadFile(*file);
+                }
+
+                // Запит на шифрування
+                std::wcout << L"Do you want to encrypt the file? (yes/no): ";
+                std::wstring encryptResponse;
+                std::getline(std::wcin, encryptResponse);
+
+                if (encryptResponse == L"yes") {
+                    auto encryptedFile = std::make_unique<EncryptionDecorator>(std::move(file));  // Decorator pattern
+                    std::wcout << L"File encrypted: " << encryptedFile->getType() << L"\n";
+
+                    // Завершення програми
+                    break; // Вихід після шифрування
+                }
+
+            }
+            else {
+                std::wcout << L"Invalid file type.\n";
+            }
+
+        }
+        else if (command == L"finish") {
+            break; // Вихід з програми
+        }
+    }
+
+    return 0;
+}
