@@ -1,0 +1,61 @@
+#include <iostream>
+#include <string>
+
+// Базовий інтерфейс Компонента
+class DataStream {
+public:
+    virtual std::string processData() const = 0;
+    virtual ~DataStream() = default;
+};
+
+// Реалізація базового компонента - потік даних
+class FileStream : public DataStream {
+public:
+    std::string processData() const override {
+        return "File data";
+    }
+};
+
+// Абстрактний декоратор
+class DataStreamDecorator : public DataStream {
+protected:
+    DataStream* stream; // Вказівник на об'єкт, який декорується
+public:
+    DataStreamDecorator(DataStream* s) : stream(s) {}
+    std::string processData() const override {
+        return stream->processData();
+    }
+};
+
+// Декоратор для шифрування даних
+class EncryptedStream : public DataStreamDecorator {
+public:
+    EncryptedStream(DataStream* s) : DataStreamDecorator(s) {}
+    std::string processData() const override {
+        return "Encrypted(" + stream->processData() + ")";
+    }
+};
+
+// Декоратор для стиснення даних
+class CompressedStream : public DataStreamDecorator {
+public:
+    CompressedStream(DataStream* s) : DataStreamDecorator(s) {}
+    std::string processData() const override {
+        return "Compressed(" + stream->processData() + ")";
+    }
+};
+
+// Використання
+int main() {
+    DataStream* file = new FileStream();
+    DataStream* encryptedFile = new EncryptedStream(file);
+    DataStream* compressedEncryptedFile = new CompressedStream(encryptedFile);
+
+    std::cout << compressedEncryptedFile->processData() << std::endl;
+
+    delete file;
+    delete encryptedFile;
+    delete compressedEncryptedFile;
+
+    return 0;
+}
